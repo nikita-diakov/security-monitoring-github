@@ -1,0 +1,97 @@
+services:
+  loki:
+    image: grafana/loki:latest
+    container_name: security-lab-loki
+    command: -config.file=/etc/loki/config.yml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./configs/loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+    networks:
+      - security-lab
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: security-lab-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
+    networks:
+      - security-lab
+
+  alloy:
+    image: grafana/alloy:latest
+    container_name: security-lab-alloy
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    ports:
+      - "12345:12345"
+    volumes:
+      - ./configs/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./logs:/var/log/security-lab:ro
+      - ./alerts:/var/log/security-alerts:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      - loki
+    restart: unless-stopped
+    networks:
+      - security-lab
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: security-lab-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./configs/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./app:/usr/share/nginx/html:ro
+      - ./logs/nginx:/var/log/nginx
+    restart: unless-stopped
+    networks:
+      - security-lab
+
+  detector:
+    build:
+      context: ./detector
+    container_name: security-lab-detector
+    environment:
+      NGINX_ACCESS_LOG: /lab-logs/nginx/access.log
+      AUTH_LOG: /lab-logs/auth.log
+      ALERT_OUTPUT: /lab-alerts/alerts.jsonl
+      SUSPICIOUS_PATH_THRESHOLD: "5"
+      HTTP_4XX_THRESHOLD: "10"
+      SSH_FAILURE_THRESHOLD: "5"
+      WINDOW_SECONDS: "60"
+      COOLDOWN_SECONDS: "120"
+    volumes:
+      - ./logs:/lab-logs
+      - ./alerts:/lab-alerts
+    depends_on:
+      - nginx
+    restart: unless-stopped
+    networks:
+      - security-lab
+
+networks:
+  security-lab:
+    driver: bridge
+
+volumes:
+  loki-data:
+  grafana-data:
+  alloy-data:
