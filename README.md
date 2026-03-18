@@ -219,6 +219,17 @@ sum by (remote_addr) (
 
 ---
 
+## Screenshots
+
+### Grafana Explore
+![Grafana Explore](assets/screenshots/grafana-explore.png)
+
+### Detector alerts
+![Detector alerts](assets/screenshots/detector-alerts.png)
+
+### Running containers
+![Running containers](assets/screenshots/docker-ps.png)
+
 ## Typical demo flow for GitHub or interviews
 
 1. Start the stack with `./scripts/up.sh`.
